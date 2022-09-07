@@ -6,11 +6,16 @@ const session = require("express-session");
 const ExpressError = require("./utils/ExpressError")
 const methodOverride = require("method-override")
 const flash = require('connect-flash')
+const passport = require('passport')
+const localStrategy = require('passport-local')
+const User = require('./models/user')
 
 const app = express();
 
-const campground = require("./routes/campgrounds")
-const reviews = require("./routes/reviews")
+const userRoutes = require("./routes/users")
+const campgroundRoutes = require("./routes/campgrounds")
+const reviewsRoutes = require("./routes/reviews");
+const { equal } = require("assert");
 
 
 app.set("view engine", "ejs");
@@ -35,6 +40,12 @@ const sessionConfig = {
 app.use(session(sessionConfig))
 app.use(flash()) //flash depend on sessions
 
+app.use(passport.initialize());
+app.use(passport.session()) //session MUST BE used before passport session
+passport.use(new localStrategy(User.authenticate())) // authenticate static added automatically by passport
+passport.serializeUser(User.serializeUser())
+passport.deserializeUser(User.deserializeUser())
+
 main().catch(err => console.log("OH NO MONGO ERROR", err));
 
 async function main() {
@@ -48,13 +59,15 @@ app.listen(3000, () => {
 
 //to use flash in a middleware it should be before route handlers
 app.use((req, res, next) => {
+    res.locals.currentUser = req.user; //passport store the user in the session, we add it here to be able to access it on all templates
     res.locals.success = req.flash("success");
     res.locals.error = req.flash('error');
     next()
 })
 
-app.use("/campgrounds", campground);
-app.use("/campgrounds/:id/reviews", reviews);
+app.use('/', userRoutes)
+app.use("/campgrounds", campgroundRoutes);
+app.use("/campgrounds/:id/reviews", reviewsRoutes);
 
 //Error Handling
 app.all("*", (req, res, next) => { //for all the unmatched above requests
