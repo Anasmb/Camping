@@ -9,9 +9,11 @@ const session = require("express-session");
 const ExpressError = require("./utils/ExpressError")
 const methodOverride = require("method-override")
 const flash = require('connect-flash')
+const mongoSanitize = require('express-mongo-sanitize');
 const passport = require('passport')
 const localStrategy = require('passport-local')
 const User = require('./models/user')
+const helmet = require('helmet')
 
 const app = express();
 
@@ -27,15 +29,61 @@ app.use(express.urlencoded({ extended: true })); //THIS IS IMPORTANT FOR FORM PO
 app.use(methodOverride("_method"));
 app.use(express.static(path.join(__dirname, "public"))) //public is the name of the directory
 app.engine("ejs", ejsMate)
+app.use(mongoSanitize()) //PREVENT query injection
 
+const scriptSrcUrls = [
+    "https://stackpath.bootstrapcdn.com/",
+    "https://api.tiles.mapbox.com/",
+    "https://api.mapbox.com/",
+    "https://kit.fontawesome.com/",
+    "https://cdnjs.cloudflare.com/",
+    "https://cdn.jsdelivr.net",
+];
+const styleSrcUrls = [
+    "https://kit-free.fontawesome.com/",
+    "https://api.mapbox.com/",
+    "https://api.tiles.mapbox.com/",
+    "https://fonts.googleapis.com/",
+    "https://use.fontawesome.com/",
+    "https://cdn.jsdelivr.net",
+];
+const connectSrcUrls = [
+    "https://api.mapbox.com/",
+    "https://a.tiles.mapbox.com/",
+    "https://b.tiles.mapbox.com/",
+    "https://events.mapbox.com/",
+];
+const fontSrcUrls = [];
+app.use(
+    helmet.contentSecurityPolicy({
+        directives: {
+            defaultSrc: [],
+            connectSrc: ["'self'", ...connectSrcUrls],
+            scriptSrc: ["'unsafe-inline'", "'self'", ...scriptSrcUrls],
+            styleSrc: ["'self'", "'unsafe-inline'", ...styleSrcUrls],
+            workerSrc: ["'self'", "blob:"],
+            objectSrc: [],
+            imgSrc: [
+                "'self'",
+                "blob:",
+                "data:",
+                "https://res.cloudinary.com/dd0fm7vwf/", //SHOULD MATCH YOUR CLOUDINARY ACCOUNT! 
+                "https://images.unsplash.com/",
+            ],
+            fontSrc: ["'self'", ...fontSrcUrls],
+        },
+    })
+);// helmets help to secure express apps by setting variuos http headers
 
 //session data by default are stored in memory, so when the server restart the data is gone :(
 const sessionConfig = {
+    name: "fast_loader", //lec 569, this will change the default name, it is better to change it so hacker wont know that this thing is session id and they try to steal it from the users
     secret: 'thisshouldbeabettersecret',
     resave: false,
     saveUninitialized: true,
     cookie: {
         httpOnly: true, //for security reasons, (by default it is set to true)
+        // secure: true, // this will only work with HTTPS, otherwise it will cause issues with not HTTPS
         expires: Date.now() + 1000 * 60 * 60 * 24 * 7, // this means it will expire within a week (in milliseconds)
         maxAge: 1000 * 60 * 60 * 24 * 7
     }
@@ -71,6 +119,10 @@ app.use((req, res, next) => {
 app.use('/', userRoutes)
 app.use("/campgrounds", campgroundRoutes);
 app.use("/campgrounds/:id/reviews", reviewsRoutes);
+
+app.get('/', (req, res) => {
+    res.render('home')
+})
 
 //Error Handling
 app.all("*", (req, res, next) => { //for all the unmatched above requests

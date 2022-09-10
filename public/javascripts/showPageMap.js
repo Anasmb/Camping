@@ -13,7 +13,9 @@ map.on('style.load', () => {
     map.setFog({}); // Set the default atmosphere style
 });
 
-const marker2 = new mapboxgl.Marker({ color: 'black', rotation: 45 })
+map.addControl(new mapboxgl.NavigationControl());
+
+new mapboxgl.Marker({ color: 'black', rotation: 45 })
     .setLngLat(goodCampground.geometry.coordinates)
     .setPopup(
         new mapboxgl.Popup({ offset: 25 })
